@@ -1,49 +1,36 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import './App.css';
 import { DataType, TABLEHEADER, SEARCHCONDITION } from './typeDef';
-const UrlUtil = new URLSearchParams();
+import Pagination from './paginationCpn';
+import { getQueryUrlKey, handleNavigate } from './utils';
 
 type conditionSearchType = '전체' | '상품명' | '브랜드' | '상품내용';
 
 function App() {
-    function getQueryUrlKey(key: string) {
-        return UrlUtil.get(key);
-    }
     const [page, setPage] = useState(parseInt(getQueryUrlKey('page') as string) || 1);
-    const [searchKey, useSearchKey] = useState<string | undefined>(
+    const [pageSize, setPageSize] = useState(parseInt(getQueryUrlKey('pageSize') as string) || 20);
+    const [searchKey, setSearchKey] = useState<string | undefined>(
         getQueryUrlKey('searchKey') || undefined
     );
     const [searchCondition, setSearchCondition] = useState<conditionSearchType>(
         (getQueryUrlKey('searchCondition') as conditionSearchType) || '전체'
     );
-
-    function handleNavigate({
-        key,
-        value,
-    }: {
-        key: 'page' | 'searchKey' | 'searchCondition';
-        value: any;
-    }) {
-        window.location;
-    }
-
-    const fetchData = async ({
-        page,
-        searchKey,
-        searchCondition,
-    }: {
-        page?: number;
-        searchKey?: string;
-        searchCondition?: string;
-    }): Promise<DataType> => {
-        const res = await fetch('https://dummyjson.com/products?limit=10', {});
+    const fetchData = async (): Promise<DataType> => {
+        const res = await fetch(
+            `https://dummyjson.com/products?limit=${pageSize}&skip=${(page - 1) * pageSize}`,
+            {}
+        );
         return res.json();
     };
-
+    function handleSearch() {
+        handleNavigate('searchKey', searchKey);
+        handleNavigate('searchCondition', searchCondition);
+        refetch();
+    }
     const { data, isLoading, refetch } = useQuery({
-        queryKey: ['getList'],
-        queryFn: () => fetchData({ page, searchKey, searchCondition }),
+        queryKey: ['getList', page, pageSize],
+        queryFn: () => fetchData(),
         onSuccess(data) {
             console.log(data);
         },
@@ -54,15 +41,30 @@ function App() {
             <section className="">
                 <div className="block block--search">
                     <span>Search</span>
-                    <select name="optionSearch" id="">
+                    <select
+                        name="optionSearch"
+                        id="optionSearch"
+                        onChange={(e) => {
+                            setSearchCondition(e.currentTarget.value as conditionSearchType);
+                        }}
+                        value={searchCondition}
+                    >
                         {SEARCHCONDITION.map((item) => (
                             <option value={item} key={item}>
                                 {item}
                             </option>
                         ))}
                     </select>
-                    <input type="text" />
-                    <button className="btn--search">Search</button>
+                    <input
+                        value={searchKey}
+                        type="text"
+                        onChange={(e) => {
+                            setSearchKey(e.target.value);
+                        }}
+                    />
+                    <button className="btn--search" onClick={() => handleSearch()}>
+                        Search
+                    </button>
                 </div>
                 <br />
                 <div>Total product : {data?.total}</div>
@@ -93,9 +95,36 @@ function App() {
                             </tr>
                         ))}
                     </tbody>
-
-                    <div className="pagination"></div>
                 </table>
+                {data && (
+                    <div className="block--pagination">
+                        <select
+                            name="pageSize"
+                            id="pageSize"
+                            style={{ height: '20px' }}
+                            defaultValue={pageSize}
+                            onChange={(e) => {
+                                setPageSize(parseInt(e.target.value));
+                                handleNavigate('pageSize', e.target.value);
+                            }}
+                        >
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                        <Pagination
+                            // className="pagination-bar"
+                            currentPage={page}
+                            totalCount={data!.total}
+                            pageSize={pageSize}
+                            onPageChange={(page: number) => {
+                                setPage(page);
+                                handleNavigate('page', page);
+                            }}
+                            siblingCount={1}
+                        />
+                    </div>
+                )}
             </section>
         </div>
     );
